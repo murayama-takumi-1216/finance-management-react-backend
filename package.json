@@ -4,15 +4,18 @@
   "description": "Finance Management API",
   "main": "src/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "build": "npm run db:create && echo Build completed successfully!",
-    "migrate": "npm run db:create && node src/config/migrate.js && node src/config/seed.js",
+    "build": "echo Build completed successfully!",
+    "migrate": "node src/config/migrate.js && node src/config/seed.js",
     "db:create": "node src/config/createDb.js",
     "db:migrate": "node src/config/migrate.js",
     "db:seed": "node src/config/seed.js",
-    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
+    "db:setup": "npm run db:migrate && npm run db:seed",
     "lint": "echo 'Add eslint if needed'"
   },
   "dependencies": {

@@ -61,15 +61,15 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log(`
   =================================
   Finance Management API
   =================================
-  Server running on port ${PORT}
+  Server running on ${HOST}:${PORT}
   Environment: ${process.env.NODE_ENV || 'development'}
-  API Base URL: http://localhost:${PORT}/api
   =================================
   `);
 });
