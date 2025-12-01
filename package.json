@@ -1,0 +1,32 @@
+{
+  "name": "finance-management-backend",
+  "version": "1.0.0",
+  "description": "Finance Management API",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "npm run db:create && echo Build completed successfully!",
+    "migrate": "npm run db:create && node src/config/migrate.js && node src/config/seed.js",
+    "db:create": "node src/config/createDb.js",
+    "db:migrate": "node src/config/migrate.js",
+    "db:seed": "node src/config/seed.js",
+    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
+    "lint": "echo 'Add eslint if needed'"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
