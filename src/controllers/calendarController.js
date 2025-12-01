@@ -1052,6 +1052,10 @@ export const createAccountReminder = async (req, res) => {
       id: reminder.id_recordatorio,
       mensaje: mensaje,
       fechaRecordatorio: reminder.fecha_recordatorio,
+      minutosAntes: reminder.minutos_antes,
+      canal: reminder.canal,
+      activo: reminder.activo,
+      enviado: reminder.enviado,
       createdAt: reminder.created_at
     });
   } catch (error) {

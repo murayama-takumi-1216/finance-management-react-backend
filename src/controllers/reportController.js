@@ -2,6 +2,15 @@ import { query } from '../config/database.js';
 import { getPeriodDates, calculatePercentageChange, roundToDecimals } from '../utils/helpers.js';
 import { ESTADO_CONFIRMADO } from '../utils/constants.js';
 
+// Helper to normalize date params (support both Spanish and English param names)
+const getDateParams = (queryParams) => {
+  const { fecha_desde, fecha_hasta, start, end } = queryParams;
+  return {
+    startDate: fecha_desde || start,
+    endDate: fecha_hasta || end
+  };
+};
+
 /**
  * Get totals by period (month, quarter, year)
  * Groups confirmed movements and calculates income, expenses, and balance
@@ -9,20 +18,21 @@ import { ESTADO_CONFIRMADO } from '../utils/constants.js';
 export const getTotalsByPeriod = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { agrupacion, year, fecha_desde, fecha_hasta } = req.query;
+    const { agrupacion, year } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     let dateFilter = '';
     const params = [accountId, ESTADO_CONFIRMADO];
     let paramIndex = 3;
 
-    if (fecha_desde && fecha_hasta) {
-      dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
-      paramIndex += 2;
-    } else if (year) {
-      const { startDate, endDate } = getPeriodDates(parseInt(year));
+    if (startDate && endDate) {
       dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
       params.push(startDate, endDate);
+      paramIndex += 2;
+    } else if (year) {
+      const periodDates = getPeriodDates(parseInt(year));
+      dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
+      params.push(periodDates.startDate, periodDates.endDate);
       paramIndex += 2;
     }
 
@@ -32,20 +42,20 @@ export const getTotalsByPeriod = async (req, res) => {
       case 'mes':
         groupBy = "DATE_TRUNC('month', fecha_operacion)";
         selectPeriod = `TO_CHAR(DATE_TRUNC('month', fecha_operacion), 'YYYY-MM') as periodo,
-                        EXTRACT(YEAR FROM fecha_operacion) as year,
-                        EXTRACT(MONTH FROM fecha_operacion) as month`;
+                        EXTRACT(YEAR FROM DATE_TRUNC('month', fecha_operacion)) as year,
+                        EXTRACT(MONTH FROM DATE_TRUNC('month', fecha_operacion)) as month`;
         break;
       case 'trimestre':
         groupBy = "DATE_TRUNC('quarter', fecha_operacion)";
         selectPeriod = `TO_CHAR(DATE_TRUNC('quarter', fecha_operacion), 'YYYY-"Q"Q') as periodo,
-                        EXTRACT(YEAR FROM fecha_operacion) as year,
-                        EXTRACT(QUARTER FROM fecha_operacion) as quarter`;
+                        EXTRACT(YEAR FROM DATE_TRUNC('quarter', fecha_operacion)) as year,
+                        EXTRACT(QUARTER FROM DATE_TRUNC('quarter', fecha_operacion)) as quarter`;
         break;
       case 'anio':
       default:
         groupBy = "DATE_TRUNC('year', fecha_operacion)";
         selectPeriod = `TO_CHAR(DATE_TRUNC('year', fecha_operacion), 'YYYY') as periodo,
-                        EXTRACT(YEAR FROM fecha_operacion) as year`;
+                        EXTRACT(YEAR FROM DATE_TRUNC('year', fecha_operacion)) as year`;
         break;
     }
 
@@ -88,22 +98,22 @@ export const getTotalsByPeriod = async (req, res) => {
 export const getExpensesByCategory = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     let dateFilter = '';
     const params = [accountId, ESTADO_CONFIRMADO, 'gasto'];
     let paramIndex = 4;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND m.fecha_operacion >= $${paramIndex} AND m.fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
     }
 
     // Get total expenses
     const totalResult = await query(
       `SELECT COALESCE(SUM(importe), 0) as total
        FROM movimientos
-       WHERE id_cuenta = $1 AND estado = $2 AND tipo = $3 ${dateFilter.replace('m.', '')}`,
+       WHERE id_cuenta = $1 AND estado = $2 AND tipo = $3 ${dateFilter.replaceAll('m.', '')}`,
       params
     );
     const totalExpenses = parseFloat(totalResult.rows[0].total);
@@ -136,7 +146,7 @@ export const getExpensesByCategory = async (req, res) => {
     res.json({
       categories,
       totalGastos: roundToDecimals(totalExpenses),
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get expenses by category error:', error);
@@ -150,22 +160,22 @@ export const getExpensesByCategory = async (req, res) => {
 export const getIncomeByCategory = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     let dateFilter = '';
     const params = [accountId, ESTADO_CONFIRMADO, 'ingreso'];
     let paramIndex = 4;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND m.fecha_operacion >= $${paramIndex} AND m.fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
     }
 
     // Get total income
     const totalResult = await query(
       `SELECT COALESCE(SUM(importe), 0) as total
        FROM movimientos
-       WHERE id_cuenta = $1 AND estado = $2 AND tipo = $3 ${dateFilter.replace('m.', '')}`,
+       WHERE id_cuenta = $1 AND estado = $2 AND tipo = $3 ${dateFilter.replaceAll('m.', '')}`,
       params
     );
     const totalIncome = parseFloat(totalResult.rows[0].total);
@@ -198,7 +208,7 @@ export const getIncomeByCategory = async (req, res) => {
     res.json({
       categories,
       totalIngresos: roundToDecimals(totalIncome),
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get income by category error:', error);
@@ -212,11 +222,20 @@ export const getIncomeByCategory = async (req, res) => {
 export const comparePeriods = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { periodo_a_inicio, periodo_a_fin, periodo_b_inicio, periodo_b_fin } = req.query;
+    const {
+      periodo_a_inicio, periodo_a_fin, periodo_b_inicio, periodo_b_fin,
+      periodo1_inicio, periodo1_fin, periodo2_inicio, periodo2_fin
+    } = req.query;
 
-    if (!periodo_a_inicio || !periodo_a_fin || !periodo_b_inicio || !periodo_b_fin) {
+    // Support both naming conventions
+    const periodAStart = periodo_a_inicio || periodo1_inicio;
+    const periodAEnd = periodo_a_fin || periodo1_fin;
+    const periodBStart = periodo_b_inicio || periodo2_inicio;
+    const periodBEnd = periodo_b_fin || periodo2_fin;
+
+    if (!periodAStart || !periodAEnd || !periodBStart || !periodBEnd) {
       return res.status(400).json({
-        error: 'Both periods (a and b) with start and end dates are required.'
+        error: 'Both periods with start and end dates are required.'
       });
     }
 
@@ -232,7 +251,7 @@ export const comparePeriods = async (req, res) => {
        WHERE m.id_cuenta = $1 AND m.estado = $2
          AND m.fecha_operacion >= $3 AND m.fecha_operacion <= $4
        GROUP BY c.id_categoria, c.nombre, m.tipo`,
-      [accountId, ESTADO_CONFIRMADO, periodo_a_inicio, periodo_a_fin]
+      [accountId, ESTADO_CONFIRMADO, periodAStart, periodAEnd]
     );
 
     // Get totals for period B
@@ -247,7 +266,7 @@ export const comparePeriods = async (req, res) => {
        WHERE m.id_cuenta = $1 AND m.estado = $2
          AND m.fecha_operacion >= $3 AND m.fecha_operacion <= $4
        GROUP BY c.id_categoria, c.nombre, m.tipo`,
-      [accountId, ESTADO_CONFIRMADO, periodo_b_inicio, periodo_b_fin]
+      [accountId, ESTADO_CONFIRMADO, periodBStart, periodBEnd]
     );
 
     // Build comparison map
@@ -316,15 +335,15 @@ export const comparePeriods = async (req, res) => {
       comparison: comparison.sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia)),
       resumen: {
         periodoA: {
-          fechaInicio: periodo_a_inicio,
-          fechaFin: periodo_a_fin,
+          fechaInicio: periodAStart,
+          fechaFin: periodAEnd,
           ingresos: roundToDecimals(summaryA.ingresos),
           gastos: roundToDecimals(summaryA.gastos),
           saldo: roundToDecimals(summaryA.ingresos - summaryA.gastos)
         },
         periodoB: {
-          fechaInicio: periodo_b_inicio,
-          fechaFin: periodo_b_fin,
+          fechaInicio: periodBStart,
+          fechaFin: periodBEnd,
           ingresos: roundToDecimals(summaryB.ingresos),
           gastos: roundToDecimals(summaryB.gastos),
           saldo: roundToDecimals(summaryB.ingresos - summaryB.gastos)
@@ -351,7 +370,8 @@ export const comparePeriods = async (req, res) => {
 export const getTopCategories = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta, tipo, limit } = req.query;
+    const { tipo, limit } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     const topLimit = Math.min(parseInt(limit) || 10, 50);
     const movementType = tipo || 'gasto';
@@ -360,9 +380,9 @@ export const getTopCategories = async (req, res) => {
     const params = [accountId, ESTADO_CONFIRMADO, movementType, topLimit];
     let paramIndex = 5;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND m.fecha_operacion >= $${paramIndex} AND m.fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
     }
 
     const result = await query(
@@ -395,7 +415,7 @@ export const getTopCategories = async (req, res) => {
     res.json({
       ranking,
       tipo: movementType,
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get top categories error:', error);
@@ -409,15 +429,16 @@ export const getTopCategories = async (req, res) => {
 export const getIncomeVsExpenses = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta, agrupacion } = req.query;
+    const { agrupacion } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     let dateFilter = '';
     const params = [accountId, ESTADO_CONFIRMADO];
     let paramIndex = 3;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
     }
 
     let groupBy, selectPeriod, orderBy;
@@ -479,7 +500,7 @@ export const getIncomeVsExpenses = async (req, res) => {
         balance: roundToDecimals(totalIngresos - totalGastos)
       },
       agrupacion: agrupacion || 'mes',
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get income vs expenses error:', error);
@@ -494,15 +515,16 @@ export const getIncomeVsExpenses = async (req, res) => {
 export const getNetIncome = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta, categorias_deduccion } = req.query;
+    const { categorias_deduccion } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     let dateFilter = '';
     const params = [accountId, ESTADO_CONFIRMADO];
     let paramIndex = 3;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
       paramIndex += 2;
     }
 
@@ -556,7 +578,7 @@ export const getNetIncome = async (req, res) => {
         detalle: deductionDetails
       },
       ingresosNetos: roundToDecimals(netIncome),
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get net income error:', error);
@@ -570,7 +592,8 @@ export const getNetIncome = async (req, res) => {
 export const getSpendingByProvider = async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { fecha_desde, fecha_hasta, limit } = req.query;
+    const { limit } = req.query;
+    const { startDate, endDate } = getDateParams(req.query);
 
     const topLimit = Math.min(parseInt(limit) || 20, 100);
 
@@ -578,9 +601,9 @@ export const getSpendingByProvider = async (req, res) => {
     const params = [accountId, ESTADO_CONFIRMADO, topLimit];
     let paramIndex = 4;
 
-    if (fecha_desde && fecha_hasta) {
+    if (startDate && endDate) {
       dateFilter = `AND fecha_operacion >= $${paramIndex} AND fecha_operacion <= $${paramIndex + 1}`;
-      params.push(fecha_desde, fecha_hasta);
+      params.push(startDate, endDate);
     }
 
     const result = await query(
@@ -604,7 +627,7 @@ export const getSpendingByProvider = async (req, res) => {
 
     res.json({
       providers,
-      periodo: { fechaDesde: fecha_desde, fechaHasta: fecha_hasta }
+      periodo: { fechaDesde: startDate, fechaHasta: endDate }
     });
   } catch (error) {
     console.error('Get spending by provider error:', error);
