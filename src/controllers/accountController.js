@@ -34,7 +34,12 @@ export const getAccounts = async (req, res) => {
 
     const result = await query(
       `SELECT c.*, uc.rol_en_cuenta, uc.tipo_acceso,
-              u.nombre as propietario_nombre, u.email as propietario_email
+              u.nombre as propietario_nombre, u.email as propietario_email,
+              COALESCE(
+                (SELECT SUM(CASE WHEN m.tipo = 'ingreso' AND m.estado = 'confirmado' THEN m.importe ELSE 0 END) -
+                        SUM(CASE WHEN m.tipo = 'gasto' AND m.estado = 'confirmado' THEN m.importe ELSE 0 END)
+                 FROM movimientos m WHERE m.id_cuenta = c.id_cuenta), 0
+              ) as saldo
        FROM cuentas c
        JOIN usuario_cuenta uc ON c.id_cuenta = uc.id_cuenta
        JOIN usuarios u ON c.id_usuario_propietario = u.id_usuario
@@ -54,6 +59,9 @@ export const getAccounts = async (req, res) => {
       propietario: {
         nombre: a.propietario_nombre,
         email: a.propietario_email
+      },
+      balance: {
+        saldo: parseFloat(a.saldo) || 0
       },
       createdAt: a.created_at
     }));
