@@ -8,14 +8,14 @@ const { Client } = pg;
 const createDatabase = async () => {
   // Connect to default 'postgres' database to create our database
   const client = new Client({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
     database: 'postgres', // Connect to default postgres database
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
   });
 
-  const dbName = process.env.DB_NAME;
+  const dbName = process.env.DB_NAME || 'finance_management';
 
   try {
     await client.connect();

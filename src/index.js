@@ -16,25 +16,40 @@ const __dirname = path.dirname(__filename);
 // Create Express app
 const app = express();
 
-// CORS configuration - allow all origins
-app.enableCors({
-    origin: true, // Allow all origins
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-      'Access-Control-Request-Method',
-      'Access-Control-Request-Headers',
-    ],
-    exposedHeaders: ['Authorization'],
-    credentials: true, // Allow credentials (cookies, authorization headers)
-    maxAge: 86400, // Cache preflight requests for 24 hours
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-  });
+// CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow all Vercel preview URLs for this project
+    if (origin.includes('finance-management') && origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+
+    // Allow localhost for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Middleware
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
