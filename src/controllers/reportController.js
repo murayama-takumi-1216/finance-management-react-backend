@@ -454,6 +454,11 @@ export const getIncomeVsExpenses = async (req, res) => {
         selectPeriod = `TO_CHAR(DATE_TRUNC('week', fecha_operacion), 'YYYY-"W"IW') as periodo`;
         orderBy = "DATE_TRUNC('week', fecha_operacion)";
         break;
+      case 'trimestre':
+        groupBy = "DATE_TRUNC('quarter', fecha_operacion)";
+        selectPeriod = `TO_CHAR(DATE_TRUNC('quarter', fecha_operacion), 'YYYY-"Q"Q') as periodo`;
+        orderBy = "DATE_TRUNC('quarter', fecha_operacion)";
+        break;
       case 'mes':
       default:
         groupBy = "DATE_TRUNC('month', fecha_operacion)";
